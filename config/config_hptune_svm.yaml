@@ -1,0 +1,24 @@
+
+ml_models:
+  - name: SVM
+    params:
+      - kernel: ['rbf']
+        C: [ 10, 300, 1000]
+        gamma: [scale, auto, 0.001, 0.01, 0.1, 0.5, 1, 5]
+        epsilon: [0.001, 0.005, 0.01, 0.05]
+
+
+      - kernel: ['poly']
+        C: [ 10, 300, 1000]
+        gamma: [scale, 0.01, 0.1, 0.5]
+        degree: [3, 4]
+        coef0: [1, 5, 10]
+        epsilon: [0.001, 0.005, 0.01]
+
+      - kernel: ['sigmoid']
+        C: [10, 300, 1000]
+        gamma: [scale, auto, 0.01, 0.1]
+        coef0: [-5, -1, 0.0, 1, 5]
+        epsilon: [0.001, 0.005, 0.01]
+
+
