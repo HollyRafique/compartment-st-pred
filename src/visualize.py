@@ -5,72 +5,6 @@ import matplotlib.patches as patches
 import numpy as np
 
 
-def visualise_feature_vector_heatmap(feature_vector):
-    """
-    Visualizes the feature vector using a heatmap.
-
-    Parameters:
-    - feature_vector: 1D torch.Tensor of shape [n_features].
-    """
-    #feature_vector = feature_vector.squeeze().detach().numpy()  # Remove the batch dimension
-    feature_vector = feature_vector.reshape(1, -1)  # Reshape for heatmap
-
-    plt.figure(figsize=(12, 2))
-    sns.heatmap(feature_vector, cmap='viridis', annot=False, cbar=True, xticklabels=False)
-    plt.title("Feature Vector Heatmap")
-    plt.show()
-
-def viz_side_by_side(original_image, feature_map, index=0, cmap='viridis'):
-    try:
-        # Extract and process the selected original image from the batch
-        original_image = original_image
-
-        # Extract and process the selected feature map from the batch
-        feature_img = feature_map[index].transpose(0, 2).sum(-1).detach().numpy()
-
-        # Plotting
-        plt.figure(figsize=(12, 6))  # Adjust figure size as needed
-
-        # Plot original image
-        plt.subplot(1, 2, 1)
-        plt.imshow(original_image)
-        plt.title(f"Original Image {index}")
-
-        # Plot feature map
-        plt.subplot(1, 2, 2)
-        plt.imshow(feature_img, cmap=cmap)
-        plt.title(f"Feature Map {index}")
-
-        plt.show()
-
-    except IndexError:
-        print(f"Index {index} is out of bounds for the batch size {original_image.shape[0]}.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-
-
-def visualise_feature_matrix_heatmap(feature_matrix):
-    """
-    Visualizes a feature matrix using a heatmap.
-
-    Parameters:
-    - feature_matrix: NumPy array of shape (n_samples, n_features), where each row is a sample and each column is a feature.
-    """
-    plt.figure(figsize=(12, 8))
-    
-    # Plot the heatmap
-    sns.heatmap(feature_matrix, cmap='viridis', annot=False, cbar=True)
-    
-    plt.title("Feature Matrix Heatmap")
-    plt.xlabel("Features")
-    plt.ylabel("Samples")
-    
-    plt.show()
-
-
-
-
 def plot_rois_on_image(image, roi_dict, save=False, LEAPID=""):
     """
     Overlays ROI rectangles on an image and labels them with their IDs.
@@ -128,67 +62,43 @@ def plot_rois_on_image(image, roi_dict, save=False, LEAPID=""):
     plt.close()
 
 
-    
-def overlay_coords_on_img(img, subset_metadata, img_title=""):
-    xcoords = subset_metadata.loc[:,"ROICoordinateY_downsampled"] #/ 4).astype(int)
-
-    # Assign the corrected Y coordinate
-    ycoords = subset_metadata.loc[:,"ROICoordinateX_downsampled"] #/ 4).astype(int)
-
-    # Overlay corrected coordinates
-
-    plt.scatter(
-        xcoords,
-        ycoords,
-        label="Corrected FOVs",
-        alpha=0.8,
-        c="red",
-        #edgecolors="black",
-        s=20
-    )
-    # Add labels for each point using ROI
-    for i, txt in enumerate(subset_metadata['Roi']):
-        plt.text(
-            xcoords.iloc[i]+20,
-            ycoords.iloc[i],
-            str(int(txt)),
-            fontsize=6,
-            ha='left', 
-            va='center',  # Center the text vertically
-            color="black"
-        )
-
-    # Set plot parameters
-    plt.title(f"Corrected FOVs for {img_title}")
-    plt.legend()
-
-    #plt.axis("equal")
-
-    plt.imshow(img) 
-    plt.show()
-
-def display_spatial_threshold(gene, he_img, metadata, expr_matrix, threshold ):
-
-    # Extract expression values for the gene
-    expression_values = expr_matrix.loc[gene]
-
-    # Assign colors: above threshold -> 1, below or equal -> 0
-    colors = np.where(expression_values > threshold, 1, 0)
-
-    plt.imshow(he_img)
-    plt.scatter(
-        metadata["ROICoordinateY_downsampled"], 
-        metadata["ROICoordinateX_downsampled"], 
-        c=colors, cmap="viridis", alpha=0.8
-    )
-    plt.colorbar(label="Above (1) vs Below (0) Threshold")
-    plt.title(f"Spatial Expression of {gene}(Threshold: {threshold})")
-    plt.xlabel("X Coordinate")
-    plt.ylabel("Y Coordinate")
-    plt.show()
-
 def display_spatial_expression(gene, he_img, subset_metadata, expr_matrix , xlim=None, ylim=None, ax=None):
+    """
+    Visualise spatial gene expression overlaid on a histology image.
 
+    This function plots ROI locations on top of an H&E image and colours them
+    according to the expression level of a specified gene.
+
+    Args:
+        gene (str):
+            Gene name to visualise.
+
+        he_img (np.ndarray):
+            Background H&E image (typically a downsampled RGB image).
+
+        subset_metadata (pd.DataFrame):
+            DataFrame containing ROI spatial coordinates. Must include:
+            - 'ROICoordinateX_downsampled'
+            - 'ROICoordinateY_downsampled'
+
+        expr_matrix (pd.DataFrame):
+            Gene expression matrix indexed by gene names with columns
+            corresponding to ROIs.
+
+        xlim (tuple, optional):
+            Tuple specifying x-axis limits (xmin, xmax) for zooming.
+
+        ylim (tuple, optional):
+            Tuple specifying y-axis limits (ymin, ymax) for zooming.
+
+        ax (matplotlib.axes.Axes, optional):
+            Existing matplotlib axis to plot on. If None, a new figure
+            and axis will be created.
+
+    Returns:
+        matplotlib.axes.Axes:
+            Axis containing the spatial expression plot.
+    """
     plt.imshow(he_img)
     plt.scatter(
         subset_metadata["ROICoordinateY_downsampled"], 
@@ -203,55 +113,45 @@ def display_spatial_expression(gene, he_img, subset_metadata, expr_matrix , xlim
     if ylim: plt.ylim(ylim)
     plt.show()
 
-def single_violin(expression_df,gene):
-    # Create a violin plot of expression values
-    plt.figure(figsize=(8, 6))
-    sns.violinplot(y=expression_df["Expression"], color="skyblue", inner="box")
-    # Calculate statistics
-    mean_expression = expression_df["Expression"].mean()
-    median_expression = expression_df["Expression"].median()
-
-
-    # Add mean and median lines
-    plt.axhline(mean_expression, color="red",  linewidth=1)
-    plt.axhline(median_expression, color="green",  linewidth=1)
-    plt.text(0, mean_expression, f"Mean: {mean_expression:.2f}", color="red", fontsize=8)
-    plt.text(0, median_expression, f"Median: {median_expression:.2f}", color="green", fontsize=8)
-
-    # Customize the plot
-    plt.title(f"Distribution of Expression Values for {gene}")
-    plt.ylabel("Expression Value")
-    plt.xlabel("All Samples (ROIs)")
-    plt.show()
-
-
-def ometiff_to_rgb(img):
-    from skimage import exposure
-    # Load your IF image (e.g., 4-channel image with shape (4, height, width))
-
-    # Initialize an empty RGB image
-    rgb_image = np.zeros((img.shape[1], img.shape[2], 3), dtype=np.float32)
-
-    # Map each channel to RGB components (example: Red, Green, Blue, and Yellow)
-    rgb_image[:, :, 0] = exposure.rescale_intensity(img[0], in_range='image', out_range=(0, 1))  # Red
-    rgb_image[:, :, 1] = exposure.rescale_intensity(img[1], in_range='image', out_range=(0, 1))  # Green
-    rgb_image[:, :, 2] = exposure.rescale_intensity(img[2], in_range='image', out_range=(0, 1))  # Blue
-
-    # If you have a fourth channel and want to add it as yellow (mixing red and green)
-    rgb_image[:, :, 0] += exposure.rescale_intensity(img[3], in_range='image', out_range=(0, 0.5))
-    rgb_image[:, :, 1] += exposure.rescale_intensity(img[3], in_range='image', out_range=(0, 0.5))
-
-    # Clip values to ensure they stay within the 0-1 range
-    rgb_image = np.clip(rgb_image, 0, 1)
-    gamma = 0.45  # Choose a value less than 1 to make the image brighter
-    brightened_channels = np.stack([exposure.adjust_gamma(channel, gamma) for channel in rgb_image.transpose(2, 0, 1)], axis=2)
-
-    return brightened_channels
-
 
 
 def plot_classification_results(y_true, y_probs, threshold=0.5, vertical=False, labels=[0,1], 
                             title="Classification Results", save_path=None):
+    """
+    Plot classification performance using a confusion matrix and ROC curve.
+
+    This function converts predicted probabilities into binary predictions using
+    a specified threshold, then visualises model performance with a confusion
+    matrix and ROC curve. The plots can be arranged either horizontally or
+    vertically.
+
+    Args:
+        y_true (array-like):
+            Ground truth binary labels.
+
+        y_probs (array-like):
+            Predicted probabilities for the positive class.
+
+        threshold (float, optional):
+            Probability threshold used to convert probabilities into binary
+            predictions. Default is 0.5.
+
+        vertical (bool, optional):
+            If True, plots are stacked vertically; otherwise displayed side-by-side.
+
+        labels (list, optional):
+            Label order for the confusion matrix (default [0, 1]).
+
+        title (str, optional):
+            Title for the overall figure.
+
+        save_path (str, optional):
+            If provided, saves the figure to this file path.
+
+    Returns:
+        None
+            Displays the classification performance plots.
+    """
     from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, RocCurveDisplay
     from sklearn.metrics import f1_score
 
@@ -282,6 +182,32 @@ def plot_classification_results(y_true, y_probs, threshold=0.5, vertical=False, 
 
 
 def display_optimal_threshold(y_true, y_probs):
+    """
+    Visualise how classification metrics change across probability thresholds
+    and highlight optimal thresholds according to several criteria.
+
+    This function evaluates model performance across a dense grid of probability
+    thresholds and computes the following metrics for each threshold:
+        - F1 score
+        - Precision
+        - Recall
+        - G-mean (sqrt(sensitivity * specificity))
+        - Total misclassification cost
+
+    It then identifies the threshold that optimises each metric and plots all
+    metrics as functions of the decision threshold.
+
+    Args:
+        y_true (array-like):
+            Ground truth binary labels (0 or 1).
+
+        y_probs (array-like):
+            Predicted probabilities for the positive class.
+
+    Returns:
+        None
+            Displays a matplotlib plot showing metric behaviour across thresholds.
+    """
     from sklearn.metrics import f1_score, recall_score, precision_score
     
     # Dense grid of thresholds
@@ -294,7 +220,7 @@ def display_optimal_threshold(y_true, y_probs):
     g_means = [] 
     costs = [] 
 
-    # Cost of errors (e.g., finance, medicine)
+    # Cost of errors
     cost_fn = 500   # Cost of a false negative
     cost_fp = 5     # Cost of a false positive 
 
@@ -316,6 +242,7 @@ def display_optimal_threshold(y_true, y_probs):
         tpr = tp / (tp + fn) if (tp + fn) > 0  else  0   # Sensitivity
         tnr = tn / (tn + fp) if (tn + fp) > 0  else  0   # Specificity
         
+        # G-mean (balance between sensitivity and specificity)
         g_mean = np.sqrt(tpr * tnr) if tpr * tnr > 0  else  0 
         
         # Calculation of total cost
@@ -352,18 +279,81 @@ def display_optimal_threshold(y_true, y_probs):
     plt.grid(alpha= 0.3 )
     plt.show() 
 
-    # Displaying the optimal results
-    #best_f1_threshold, best_gmean_threshold, best_cost_threshold
 
 
 def plot_patient_row(fig, gs_row, image_gt, image_pred, values_gt, values_pred,
                      rois, sample_metadata, leap_id, limits, cmap='seismic',
                      show_titles=False, ds=0.2, TITLESIZE='16'):
+    """
+    Plot a single patient row comparing measured and predicted spatial expression.
+
+    This function creates a row in a multi-panel figure showing:
+        1) Patient identifier label
+        2) Ground-truth spatial expression overlay
+        3) Predicted spatial expression overlay
+
+    Each ROI is visualised as a coloured square positioned using ROI coordinates,
+    with colour indicating gene expression level. A colourbar is added beside the
+    predicted panel.
+
+    Args:
+        fig (matplotlib.figure.Figure):
+            Figure object the row belongs to.
+
+        gs_row (GridSpec):
+            GridSpec row defining the layout for this patient.
+
+        image_gt (np.ndarray):
+            Background H&E image used for the ground truth panel.
+
+        image_pred (np.ndarray):
+            Background H&E image used for the prediction panel.
+
+        values_gt (array-like):
+            Ground-truth expression values corresponding to ROIs.
+
+        values_pred (array-like):
+            Predicted expression values corresponding to ROIs.
+
+        rois (list-like):
+            ROI identifiers used to index spatial coordinates in `sample_metadata`.
+
+        sample_metadata (pd.DataFrame):
+            Metadata table containing ROI spatial coordinates.
+            Must contain columns:
+                - 'scatter_x'
+                - 'scatter_y'
+
+        leap_id (str):
+            Patient identifier displayed on the left side of the row.
+
+        limits (tuple):
+            Tuple of axis limits (xlim, ylim) used to crop/zoom the images.
+
+        cmap (str or matplotlib colormap, optional):
+            Colormap used to represent expression values.
+
+        show_titles (bool, optional):
+            Whether to display "Measured" and "Predicted" panel titles.
+
+        ds (float, optional):
+            Downsampling factor used to scale ROI rectangles.
+
+        TITLESIZE (int or str, optional):
+            Font size used for panel titles.
+
+    Returns:
+        None
+            Draws the patient row into the provided figure.
+    """
     from matplotlib.cm import ScalarMappable
     from matplotlib.ticker import MaxNLocator, FormatStrFormatter
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+    # Width of ROI rectangles (scaled by downsampling factor)
     rect_w = 224*ds
+
+    # Shared color scale across measured and predicted values
     vmin = min(values_gt.min(), values_pred.min())
     vmax = max(values_gt.max(), values_pred.max())+0.5
 
@@ -379,6 +369,7 @@ def plot_patient_row(fig, gs_row, image_gt, image_pred, values_gt, values_pred,
     # Ground Truth
     ax_gt = fig.add_subplot(gs_row[1])
     ax_gt.imshow(image_gt)
+    # Overlay ROI rectangles coloured by measured expression
     for x, y, val in zip(sample_metadata.loc[rois, "scatter_x"],
                          sample_metadata.loc[rois, "scatter_y"],
                          values_gt):
@@ -397,6 +388,7 @@ def plot_patient_row(fig, gs_row, image_gt, image_pred, values_gt, values_pred,
     # Prediction
     ax_pred = fig.add_subplot(gs_row[2])
     ax_pred.imshow(image_pred)
+    # Overlay ROI rectangles coloured by predicted expression
     for x, y, val in zip(sample_metadata.loc[rois, "scatter_x"],
                          sample_metadata.loc[rois, "scatter_y"],
                          values_pred):
@@ -432,6 +424,54 @@ def plot_patient_row(fig, gs_row, image_gt, image_pred, values_gt, values_pred,
 
 def plot_overlay(leap_ids, gene, roi_df,y_test, y_pred, heimgs, scaled_limits,
                  suffix="", SUPTITLESIZE=18 ):
+    """
+    Plot spatial overlays of measured and predicted expression for multiple patients.
+
+    This function creates a multi-row figure where each row corresponds to a patient.
+    For each patient it displays:
+        - A label with the patient ID
+        - Ground-truth spatial expression overlay
+        - Predicted spatial expression overlay
+        - A colourbar
+
+    The overlays are generated using `plot_patient_row`, which draws coloured ROI
+    rectangles over H&E images.
+
+    Args:
+        leap_ids (list):
+            List of patient identifiers to plot.
+
+        gene (str):
+            Gene name being visualised.
+
+        roi_df (pd.DataFrame):
+            DataFrame containing ROI metadata including:
+                - 'LEAP_ID'
+                - 'scatter_x'
+                - 'scatter_y'
+
+        y_test (array-like or pd.Series):
+            Ground-truth expression values corresponding to ROIs.
+
+        y_pred (array-like or pd.Series):
+            Predicted expression values corresponding to ROIs.
+
+        heimgs (dict):
+            Dictionary mapping LEAP_ID → H&E image.
+
+        scaled_limits (dict):
+            Dictionary mapping LEAP_ID → (xlim, ylim) used to crop images.
+
+        suffix (str, optional):
+            Optional suffix appended to the figure title.
+
+        SUPTITLESIZE (int, optional):
+            Font size for the figure-level title.
+
+    Returns:
+        None
+            Displays the spatial overlay figure.
+    """
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
     fig = plt.figure(figsize=(10, 2.8 * len(leap_ids)), layout='constrained')
@@ -478,28 +518,81 @@ def plot_overlay(leap_ids, gene, roi_df,y_test, y_pred, heimgs, scaled_limits,
 
 
 def display_spatial_expression_on_axis(gene, he_img, subset_metadata, expr_matrix , xlim=None, ylim=None, ax=None):
+    """
+    Plot spatial gene expression on a provided matplotlib axis.
+
+    This function overlays ROI coordinates on top of an H&E image and colours
+    them according to the expression level of a specified gene. The plot can
+    either be drawn on an existing axis or a new figure/axis will be created.
+
+    Args:
+        gene (str):
+            Gene name to visualise.
+
+        he_img (np.ndarray):
+            Background H&E image (typically a downsampled RGB image).
+
+        subset_metadata (pd.DataFrame):
+            DataFrame containing ROI spatial coordinates. Must include:
+                - 'ROICoordinateX_downsampled'
+                - 'ROICoordinateY_downsampled'
+
+        expr_matrix (pd.DataFrame):
+            Gene expression matrix indexed by gene names with columns
+            corresponding to ROIs.
+
+        xlim (tuple, optional):
+            Tuple specifying x-axis limits (xmin, xmax) for zooming.
+
+        ylim (tuple, optional):
+            Tuple specifying y-axis limits (ymin, ymax) for zooming.
+
+        ax (matplotlib.axes.Axes, optional):
+            Axis to draw the plot on. If None, a new figure and axis
+            will be created.
+
+    Returns:
+        matplotlib.axes.Axes:
+            Axis containing the spatial expression plot.
+    """
+
+    # Create a new axis if one is not provided
     if ax is None:
-        print("none")
         fig, ax = plt.subplots(1, 1, figsize=(5, 10))
     else:
-        fig = ax.figure  # needed for colorbar
+        # Retrieve the parent figure for colorbar placement
+        fig = ax.figure
 
+    # Display the background H&E image
     ax.imshow(he_img)
-    sc=ax.scatter(
-        subset_metadata["ROICoordinateY_downsampled"], 
-        subset_metadata["ROICoordinateX_downsampled"], 
-        c=expr_matrix.loc[gene], cmap="viridis", alpha=0.8
+
+    # Overlay ROI locations coloured by expression value
+    sc = ax.scatter(
+        subset_metadata["ROICoordinateY_downsampled"],
+        subset_metadata["ROICoordinateX_downsampled"],
+        c=expr_matrix.loc[gene],
+        cmap="viridis",
+        alpha=0.8
     )
-    # attach colorbar to THIS axes
+
+    # Attach a colorbar to the same axis
     fig.colorbar(sc, ax=ax, label="Expression level", fraction=0.046, pad=0.04)
+
+    # Plot annotations
     ax.set_title(f"{gene}")
+
+    # Remove axis labels and ticks for cleaner spatial visualisation
     ax.set_xlabel("")
     ax.set_ylabel("")
     ax.set_xticks([])
     ax.set_yticks([])
-    if xlim: ax.set_xlim(xlim)
-    if ylim: ax.set_ylim(ylim)
-    
+
+    # Optional zooming
+    if xlim:
+        ax.set_xlim(xlim)
+    if ylim:
+        ax.set_ylim(ylim)
+
     return ax
 
 
@@ -553,42 +646,106 @@ def display_preds(he_img, metadata, y_preds, xlim=None, ylim=None, threshold=0.5
     plt.show()
 
 
-    
+def display_preds_subplots(
+    he_img,
+    metadata,
+    y_preds,
+    xlim=None,
+    ylim=None,
+    threshold=0.5,
+    title="Probability of Responder",
+    ax=None,
+    probs=False
+):
+    """
+    Display predicted response values spatially on an H&E image.
 
-def display_preds_subplots(he_img, metadata, y_preds, xlim=None, ylim=None, 
-                                threshold=0.5, title="Probability of Responder", ax=None, probs=False):
+    This function overlays ROI locations on a histology image and colours them
+    according to either:
+        - predicted probabilities of response, or
+        - binary predictions based on a probability threshold.
+
+    It is designed to be used within subplot grids where the axis is passed in.
+
+    Args:
+        he_img (np.ndarray):
+            Background H&E image (typically a downsampled RGB image).
+
+        metadata (pd.DataFrame):
+            DataFrame containing ROI spatial coordinates. Must include:
+                - 'ROICoordinateX_downsampled'
+                - 'ROICoordinateY_downsampled'
+
+        y_preds (array-like):
+            Predicted probabilities or prediction scores corresponding to ROIs.
+
+        xlim (tuple, optional):
+            Tuple specifying x-axis limits (xmin, xmax) for zooming.
+
+        ylim (tuple, optional):
+            Tuple specifying y-axis limits (ymin, ymax) for zooming.
+
+        threshold (float, optional):
+            Threshold used to convert probabilities into binary predictions
+            when `probs=False`. Default is 0.5.
+
+        title (str, optional):
+            Title displayed above the subplot.
+
+        ax (matplotlib.axes.Axes, optional):
+            Axis to plot on. Should generally be provided when used in
+            subplot layouts.
+
+        probs (bool, optional):
+            If True, plots predicted probabilities using a continuous colour
+            scale. If False, plots binary predictions based on the threshold.
+
+    Returns:
+        matplotlib.axes.Axes:
+            Axis containing the spatial prediction visualisation.
+    """
+
     from matplotlib.colors import ListedColormap
-    # Extract expression values for the gene
-    expression_values = y_preds
 
-    # Assign colors: above threshold -> 1, below or equal -> 0
-    #colors = np.where(expression_values > threshold, 1, 0)
-
-    #fig, ax = plt.subplots()
+    # Display the background H&E image
     ax.imshow(he_img)
 
+    # --- Probability visualisation ---
     if probs:
         sc = ax.scatter(
-            metadata["ROICoordinateY_downsampled"], 
-            metadata["ROICoordinateX_downsampled"], 
-            c=y_preds, cmap="viridis", alpha=0.8
+            metadata["ROICoordinateY_downsampled"],
+            metadata["ROICoordinateX_downsampled"],
+            c=y_preds,
+            cmap="viridis",
+            alpha=0.8
         )
-        #ax.colorbar(label="Probability")
+
+    # --- Binary classification visualisation ---
     else:
-        
-        colors = (expression_values > threshold).astype(int)
+        # Convert probabilities to binary predictions
+        colors = (y_preds > threshold).astype(int)
+
+        # Custom two-colour colormap for binary classes
         cmap = ListedColormap(["#440154", "#FDE725"])
+
         sc = ax.scatter(
-            metadata["ROICoordinateY_downsampled"], 
-            metadata["ROICoordinateX_downsampled"], 
-            c=colors, cmap=cmap, alpha=0.8
+            metadata["ROICoordinateY_downsampled"],
+            metadata["ROICoordinateX_downsampled"],
+            c=colors,
+            cmap=cmap,
+            alpha=0.8
         )
+
+    # Set plot title
     ax.set_title(title)
-    #ax.set_xlabel("X Coordinate")
-    #ax.set_ylabel("Y Coordinate")
-    if xlim: ax.set_xlim(xlim)
-    if ylim: ax.set_ylim(ylim)
-    #ax.axis("off")
+
+    # Optional spatial zooming
+    if xlim:
+        ax.set_xlim(xlim)
+    if ylim:
+        ax.set_ylim(ylim)
+
+    # Remove axis ticks and labels for cleaner spatial display
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_xlabel("")
@@ -596,22 +753,43 @@ def display_preds_subplots(he_img, metadata, y_preds, xlim=None, ylim=None,
 
     return ax
 
-def display_probs(he_img, metadata, y_probs , xlim=None, ylim=None, title="Probability of Responder"):
-    plt.imshow(he_img)
-    plt.scatter(
-        metadata["ROICoordinateY_downsampled"], 
-        metadata["ROICoordinateX_downsampled"], 
-        c=y_probs, cmap="viridis", alpha=0.8
-    )
-    plt.colorbar(label="Probability")
-    plt.title(title)
-    plt.xlabel("X Coordinate")
-    plt.ylabel("Y Coordinate")
-    if xlim: plt.xlim(xlim)
-    if ylim: plt.ylim(ylim)
-    plt.show()
 
 def display_pooled_patch_distrib(df, suffix='', title="", thresh=0.5, save_path=None):
+    """
+    Visualise patch-level prediction distributions pooled by patient.
+
+    This function plots the distribution of patch/ROI-level predicted
+    probabilities for each patient (LEAP_ID). Individual patch predictions are
+    shown as jittered points, while the mean probability per patient is
+    highlighted with a red diamond marker.
+
+    A horizontal threshold line is drawn to indicate the decision boundary
+    used for binary classification.
+
+    Args:
+        df (pd.DataFrame):
+            DataFrame containing patch/ROI-level predictions. Must include:
+                - 'LEAP_ID' : patient identifier
+                - 'Response' : ground truth patient response
+                - f'probs{suffix}' : predicted probability for each patch
+
+        suffix (str, optional):
+            Optional suffix appended to the probability column name
+            (e.g. 'probs_calibrated').
+
+        title (str, optional):
+            Title prefix for the figure.
+
+        thresh (float, optional):
+            Probability threshold used for classification.
+
+        save_path (str, optional):
+            If provided, the figure will be saved to this path.
+
+    Returns:
+        None
+            Displays the distribution plot.
+    """
     #df = test_metadata.sort_values('LEAP_ID') 
     fig, ax = plt.subplots(figsize=(7, 4))
     patient = df.groupby("LEAP_ID").agg(
@@ -665,43 +843,114 @@ def display_pooled_patch_distrib(df, suffix='', title="", thresh=0.5, save_path=
 
 
 
+def pred_scatterplot(
+    y_measured,
+    y_pred,
+    scores,
+    genelist,
+    title="Predicted vs Measured",
+    num_genes=10
+):
+    """
+    Plot predicted vs measured expression for multiple genes.
 
-def pred_scatterplot(y_measured, y_pred, scores, genelist, title="Predicted vs Measured", num_genes=10):
+    This function generates a grid of scatter plots comparing predicted and
+    measured gene expression values. Each subplot corresponds to a gene and
+    includes an identity line (y=x) to indicate perfect prediction.
 
-    ncols=5
-    nrows=int(num_genes/ncols)
+    The Pearson q-value for each gene is displayed in the panel.
 
-    fig, axs = plt.subplots( nrows,ncols, figsize=(10, nrows*2), sharex=False, sharey=False)
+    Args:
+        y_measured (pd.DataFrame):
+            Measured expression matrix with genes as rows and samples/ROIs as columns.
+
+        y_pred (pd.DataFrame):
+            Predicted expression matrix with the same structure as `y_measured`.
+
+        scores (pd.DataFrame):
+            DataFrame containing gene-level evaluation statistics.
+            Must include columns:
+                - 'Gene'
+                - 'PearsonQVals'
+                - 'PearsonPVals'
+
+        genelist (list):
+            List of genes to plot.
+
+        title (str, optional):
+            Figure title.
+
+        num_genes (int, optional):
+            Number of genes to plot. Determines the number of subplot rows.
+
+    Returns:
+        None
+            Displays the scatter plot grid.
+    """
+
+    # Define subplot grid
+    ncols = 5
+    nrows = int(num_genes / ncols)
+
+    fig, axs = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(10, nrows * 2),
+        sharex=False,
+        sharey=False
+    )
+
+    # Flatten axes array for easier indexing
     axs = axs.flatten()
 
-
+    # Iterate over genes
     for i, genename in enumerate(genelist):
-        qval = scores.loc[scores['Gene']==genename,'PearsonQVals'].values[0]
-        pval = scores.loc[scores['Gene']==genename,'PearsonPVals'].values[0]
-        sns.scatterplot(x=y_measured.loc[genename,:], y=y_pred.loc[genename,:], ax=axs[i])
 
-        #identity line
+        # Retrieve significance values for the gene
+        qval = scores.loc[scores['Gene'] == genename, 'PearsonQVals'].values[0]
+        pval = scores.loc[scores['Gene'] == genename, 'PearsonPVals'].values[0]
+
+        # Scatter plot: measured vs predicted expression
+        sns.scatterplot(
+            x=y_measured.loc[genename, :],
+            y=y_pred.loc[genename, :],
+            ax=axs[i]
+        )
+
+        # --- Identity line (perfect prediction reference) ---
         lims = [
             min(axs[i].get_xlim()[0], axs[i].get_ylim()[0]),
             max(axs[i].get_xlim()[1], axs[i].get_ylim()[1])
         ]
         axs[i].plot(lims, lims, '--', color='black', linewidth=1)
 
+        # --- Display q-value annotation ---
         axs[i].text(
-            0.95, 0.05, f"p={qval:.2e}",
+            0.95,
+            0.05,
+            f"p={qval:.2e}",
             transform=axs[i].transAxes,
-            fontsize=8, ha='right', va='bottom',
+            fontsize=8,
+            ha='right',
+            va='bottom',
             bbox=dict(facecolor='grey', edgecolor='none', alpha=0.6)
         )
 
-
+        # Remove ticks for cleaner grid layout
         axs[i].set_xticks([])
         axs[i].set_yticks([])
-        axs[i].set_xlabel("Measured Expression",fontsize=9)
-        axs[i].set_ylabel("Predicted Expression",fontsize=9)
-        axs[i].set_title(r"$\it{" + genename + "}$") 
 
+        # Axis labels
+        axs[i].set_xlabel("Measured Expression", fontsize=9)
+        axs[i].set_ylabel("Predicted Expression", fontsize=9)
 
+        # Italicised gene name
+        axs[i].set_title(r"$\it{" + genename + "}$")
+
+    # Figure title
     fig.suptitle(title)
+
     plt.tight_layout()
     plt.show()
+
+    

@@ -17,9 +17,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-from visualize import visualise_feature_vector_heatmap, viz_side_by_side, visualise_feature_matrix_heatmap
-
-
 from utils import set_seed, save_features_with_names, load_features_from_csv
 from feature_extractor import huggingfaceLogin, getFeatureMap, transformImage, extractFeatures
 from feature_extractor import extractFeatureVectorUsingUNI, extractFeatureVectorUsingGigaPath
@@ -590,7 +587,7 @@ if __name__ == '__main__':
         patches = [Image.open(path) for path in patch_paths]
 
         # login to hugging face
-        login(token="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", add_to_git_credential=False)
+        login(token="XXXXXX", add_to_git_credential=False)
 
         # get features from hugging face
         feature_matrix = extractFeatures(foundation_model, patches)

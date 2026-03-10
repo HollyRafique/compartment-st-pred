@@ -7,29 +7,6 @@ from ome_types import to_dict
 import pandas as pd
 
 
-def maskToTruth(mask):
-    # Normalize the mask if it has pixel values greater than 1
-    if np.max(mask)>1:
-        mask = mask / 255.0
-    # Return 1 if any pixel is non-zero, otherwise 0
-    # using np.any instead of np.max as it will stop as soon as it finds a value of 1
-    return int(np.any(mask > 0))
-
-
-
-def getTruthLabels(masks):
-    # For each patch:
-    #   if the mask contains any pixels with the signature
-    #       return 1
-    #   else 
-    #       return 0
-    if not isinstance(masks, list):
-        raise ValueError("Input must be a list of masks.")
-    if not all(isinstance(mask, np.ndarray) for mask in masks):
-        raise ValueError("Each mask must be a numpy array.")
-    labels = [maskToTruth(mask) for mask in masks]
-    return labels
-
 def set_seed(seed=777):
     random.seed(seed)
     np.random.seed(seed)
@@ -200,7 +177,7 @@ def hard_majority(s):
         return 1
     if frac < 0.5:
         return 0
-    return np.nan     # exactly split
+    return np.nan    
     
 
 
@@ -236,17 +213,22 @@ def patient_level_auc(y_true_patch, y_proba_patch, groups, pos_label=1, agg="mea
 ##### METRICS
 
 def compare_patient_preds(results, patient_actual, suffix='',thresh=0.5 ):
+    """
+    Compare predicted patient-level response classifications with the actual labels.
+
+    This function aggregates ROI-level predicted probabilities for each patient
+    and reports the predicted class based on a threshold. It prints a summary
+    showing how many ROIs were classified as responders and the overall
+    patient-level prediction (majority vote via the mode).
+
+    Prints a comparison summary for each patient.
+    """
     leapids = sorted(list(results['LEAP_ID'].unique()))        
     for leap in leapids:
         meta_tmp =results.loc[results['LEAP_ID'] ==leap]
         preds = (meta_tmp[f'probs{suffix}']> thresh).astype(int)
         print(f"{leap}: {preds.sum()} / {preds.count()} \t... predicted: {'Non-Responder' if preds.mode()[0]==0 else 'Responder'}\t | actually: {patient_actual[leap]}")
 
-
-def compare_patient_preds_leaps(leaps,results, patient_actual, suffix='',thresh=0.5 ):
-    results_subset = results[results['LEAP_ID'].isin(leaps)]
-    compare_patient_preds(results_subset, patient_actual, suffix=suffix, thresh=thresh)
-    
 
 
 
@@ -255,8 +237,51 @@ def patient_level_predictions(
     patient_actual,
     suffix='',
     thresh=0.5,
-    agg="majority"  # extensible
+    agg="majority"
 ):
+    """
+    Aggregate patch/ROI-level predictions into patient-level predictions.
+
+    This function groups prediction results by patient (LEAP_ID) and converts
+    patch-level probabilities into a single patient-level prediction using
+    a specified aggregation strategy.
+
+    Args:
+        results (pd.DataFrame):
+            DataFrame containing patch/ROI-level predictions. Must include:
+            - 'LEAP_ID' : patient identifier
+            - 'probs{suffix}' : predicted probability of response.
+
+        patient_actual (pd.Series or dict-like):
+            Mapping from LEAP_ID to the true patient-level response label
+            (e.g. "Responder" or "Non-Responder").
+
+        suffix (str, optional):
+            Optional suffix used to select the probability column
+            (e.g. 'probs_calibrated'). Default '' expects column 'probs'.
+
+        thresh (float, optional):
+            Probability threshold used to convert probabilities into binary
+            predictions. Default is 0.5.
+
+        agg (str, optional):
+            Method used to aggregate patch-level predictions into a patient-level
+            prediction. Options:
+                - "majority": majority vote of binary patch predictions
+                - "mean_prob": mean probability across patches compared to threshold
+
+    Returns:
+        pd.DataFrame:
+            Patient-level summary table with the following columns:
+                - LEAP_ID : patient identifier
+                - n_patches : number of patches/ROIs for the patient
+                - n_pos_patches : number of patches predicted positive
+                - frac_pos_patches : fraction of positive patch predictions
+                - mean_prob : mean predicted probability across patches
+                - predicted : predicted patient label (0 = Non-Responder, 1 = Responder)
+                - actual : true label encoded as numeric
+                - actual_label : original string label
+    """
     LABEL_MAP = {"Non-Responder": 0, "Responder": 1}
     rows = []
     leapids = sorted(list(results['LEAP_ID'].unique()))
