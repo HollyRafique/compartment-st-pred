@@ -1,0 +1,47 @@
+# Focused grids informed by previous per-gene selections.
+# Elastic Net excludes pure L2 (l1_ratio=0); evaluate that separately with Ridge.
+# Convergence still needs checking; a larger iteration limit does not guarantee it.
+ml_models:
+- name: SVM
+  params:
+  - kernel: [rbf]
+    C: [0.1, 1, 10, 100]
+    gamma: [scale, 0.001, 0.01]
+    epsilon: [0.001, 0.01, 0.05, 0.1, 0.2]
+  - kernel: [poly]
+    C: [1, 10]
+    gamma: [scale, 0.001]
+    degree: [2, 3]
+    coef0: [0.05, 1]
+    epsilon: [0.001, 0.05, 0.2]
+  # Retain a small exploratory budget for the less frequently selected kernel.
+  - kernel: [sigmoid]
+    C: [1, 10]
+    gamma: [scale, 0.001]
+    coef0: [0.05]
+    epsilon: [0.05, 0.2]
+- name: elasticnet
+  params:
+    alpha: [0.1, 0.5, 1, 5, 10]
+    l1_ratio: [0.1, 0.5, 0.9, 1]
+    tol: [0.0001]
+    max_iter: [20000]
+- name: randomforest
+  params:
+    n_estimators: [200]
+    max_depth: [10, 20]
+    min_samples_split: [2, 10, 20]
+    min_samples_leaf: [3, 4]
+- name: gradboost
+  # Pair lower learning rates with a larger iteration budget.
+  params:
+  - learning_rate: [0.005, 0.01]
+    max_iter: [1000]
+    max_depth: [5, 10]
+    min_samples_leaf: [20, 50, 100]
+    l2_regularization: [0, 0.1, 1.0]
+  - learning_rate: [0.05]
+    max_iter: [300]
+    max_depth: [5, 10]
+    min_samples_leaf: [20, 50, 100]
+    l2_regularization: [0, 0.1, 1.0]

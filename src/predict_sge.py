@@ -443,55 +443,15 @@ def train(feature_matrix,
     predictions = []
     best_models = {}
 
-    if model_configs:
-        print("using models defined in config")
-    else:
-        ######### DEFINE MODELS TO TRAIN #################################
-        # ( label, model, params )
-        model_configs = [
-        #    ("elasticnet", ElasticNet(random_state=seed), {
-        #        'alpha': [0.1, 0.5, 1, 5, 10],
-        #        'l1_ratio': [0, 0.1, 0.5, 0.9, 1],
-        #        'tol': [0.0001, 0.0005, 0.001],
-        #        'max_iter': [100, 200, 500, 1000]
-        #    }),
-        #    ("randomforest", RandomForestRegressor(random_state=seed), {
-        #        'n_estimators': [100, 200],
-        #        'max_depth': [10, 20, 30, None],
-        #        'min_samples_split': [2, 5, 10, 20],
-        #        'min_samples_leaf': [3, 4]
-        #    }),
-        #    ("gradboost", HistGradientBoostingRegressor(random_state=seed), {
-        #        'learning_rate': [0.01, 0.05, 0.1],
-        #        'max_iter': [200,300],
-        #        'max_depth': [5, 10, None],
-        #        'min_samples_leaf': [10, 20, 50],
-        #        'l2_regularization': [0, 0.1, 1.0]
-        #    }),
-            ("SVM", SVR(), [
-                {
-                    'kernel': ['rbf'],
-                    'C': [0.1, 1, 10, 100],
-                    'gamma': ['scale', 0.01, 0.1],
-                    'epsilon': [ 0.01, 0.02, 0.05]
-                },
-        #        {
-        #            'kernel': ['poly'],
-        #            'C': [0.1, 1, 10, 100],
-        #            'gamma': ['scale', 0.001, 0.01, 0.1],
-        #            'degree': [2, 3],
-        #            'coef0': [0.0, 0.05, 1],
-        #            'epsilon': [0.01, 0.05, 0.1, 0.2]
-        #        },
-        #        {
-        #            'kernel': ['sigmoid'],
-        #            'C': [0.1, 1, 10, 100],
-        #            'gamma': ['scale', 0.001, 0.01, 0.1],
-        #            'coef0': [0.0, 0.05, 1],
-        #            'epsilon': [0.01, 0.05, 0.1, 0.2]
-        #        }
-            ])
-        ] 
+    if not model_configs:
+        default_config_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..', 'config', 'config_genetraining.yaml'
+        )
+        with open(default_config_path, 'r') as file:
+            model_configs = read_model_configs(yaml.safe_load(file))
+
+    print("using models defined in config")
 
     print("starting training loop")
     ######### TRAIN MODELS ###########################################
