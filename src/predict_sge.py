@@ -363,19 +363,16 @@ def train_multioutput_regressor(base_model, params, label, X_train, y_train, X_t
             verbose=1
         )
         grid.fit(X_train, y_train.iloc[:, i], groups=groups)
-        #tuned_models.append(grid.best_estimator_)
+
         tuned_models.append(grid)
-        #print(grid.best_params_)
-        #print(grid.best_score_)
-        #print("Best estimator:", grid.best_estimator_)
-    #print(tuned_models)
+
 
     #Evaluate on devel dataset
     summary_scores, per_gene_scores = evaluate_regression_model(models=tuned_models, 
                                                                 X_test=X_test, y_test=y_test, 
                                                                 label=label, output_path=output_path,segment=segment)
     print(f"{label.upper()}: Finished")
-    return grid, summary_scores
+    return tuned_models, summary_scores
 
 
 #######################################################################################################
@@ -385,6 +382,7 @@ def train(feature_matrix,
           outcome_cols, 
           output_path='',
           segment='CD45',
+          foundation_model='', #used to label the results
           config=None):
     
     #### READ CONFIG #####
@@ -407,7 +405,7 @@ def train(feature_matrix,
         test_size=0.2,       # 20 % of the groups → test set
         random_state=77)     # reproducible
 
-    train_idx, test_idx = next( gss.split(feature_matrix_clean,              # X
+    train_idx, test_idx = next( gss.split(feature_matrix,              # X
                   y=None,                 # y (optional)
                   groups=merged_df['LEAP_ID']))  # the grouping key
 
@@ -426,8 +424,8 @@ def train(feature_matrix,
 
     #return
 
-    X_train = feature_matrix_clean[train_idx]
-    X_dev  = feature_matrix_clean[test_idx]
+    X_train = feature_matrix[train_idx]
+    X_dev  = feature_matrix[test_idx]
 
     y_train = merged_df[outcome_cols].iloc[train_idx]     # if you have a target vector/series
     y_dev  = merged_df[outcome_cols].iloc[test_idx]
@@ -498,10 +496,10 @@ def train(feature_matrix,
     print("starting training loop")
     ######### TRAIN MODELS ###########################################
     for label, model, params in model_configs:
-        grid, scores = train_multioutput_regressor(model, params, label, X_train, y_train, X_dev, y_dev, gkf, groups,output_path,segment)
+        models, scores = train_multioutput_regressor(model, params, label, X_train, y_train, X_dev, y_dev, gkf, groups,output_path,segment)
         predictions.append(scores)
         #print(scores)
-        best_models[label] = grid
+        best_models[label] = models
 
     predictions_c = pd.concat(predictions, ignore_index=True, sort=False)
     predictions_c['feature_extractor'] = foundation_model
@@ -553,7 +551,8 @@ if __name__ == '__main__':
 
     geneset=args.truth_file.split('_')[0]
     name=f"run-{segment}_{foundation_model}_{geneset}_{curr_date}_{curr_time}"
-    #name=f"run-{segment}_{foundation_model}_{curr_date}_{curr_time}"
+    #batchnum=args.truth_file.split(".")[0][-1]
+    #name=f"run-{segment}_{foundation_model}_{geneset}_{batchnum}_{curr_date}_{curr_time}"
     print(name)
 
     #set up paths for models, training curves and predictions
@@ -593,8 +592,9 @@ if __name__ == '__main__':
         feature_matrix = extractFeatures(foundation_model, patches)
 
         # save the features
-        output_path = os.path.join(root_path,'features')
-        save_features_with_names(feature_matrix, patch_paths, output_path, f"{foundation_model}-{segment}", format="csv")
+        feature_path = os.path.join(args.output_path,'features')
+        os.makedirs(feature_path,exist_ok=True)
+        save_features_with_names(feature_matrix, patch_paths, feature_path, f"{foundation_model}-{segment}", format="csv")
 
     else:
         if args.feature_file:
@@ -624,11 +624,18 @@ if __name__ == '__main__':
     print("about to train")
 
     # TRAIN
-    trained_models, scores = train(feature_matrix, merged_df, outcome_df.columns, save_path,segment, config)
+    trained_models, scores = train(feature_matrix=feature_matrix_clean, 
+                                   merged_df=merged_df, 
+                                   outcome_cols=outcome_df.columns, 
+                                   output_path=save_path,
+                                   segment=segment, 
+                                   foundation_model=foundation_model,
+                                   config=config)
 
     print("BEST PARAMS:")
-    for label, model in trained_models.items():
-        print(f"{label}: {model.best_params_}")
+    for label, models in trained_models.items():
+            for gene, model in zip(outcome_df.columns, models):
+                print(f"{label} | {gene}: {model.best_params_}")
 
     print("now concat scores")
     # EVALUATE
