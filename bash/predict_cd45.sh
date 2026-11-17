@@ -24,15 +24,15 @@ source /share/apps/source_files/python/python-3.11.9.source
 
 input_path="/SAN/colcc/WSI_LymphNodes_BreastCancer/HollyR/data/LEAP/features/original"
 truth_path="/SAN/colcc/WSI_LymphNodes_BreastCancer/HollyR/data/LEAP/truthlabels"
-output_path="/SAN/colcc/WSI_LymphNodes_BreastCancer/HollyR/data/LEAP/output/SVMonly"
+output_path="/SAN/colcc/WSI_LymphNodes_BreastCancer/HollyR/data/LEAP/output"
 label_file="svgs_cd45_raw2.csv"
 #label_file="panel_cd45_raw.csv"
 segment="CD45+"
 foundation_model="combined"
 feature_file="${foundation_model}-${segment}_features.csv"
-config_file="/home/hrafique/multimodal/config/config_rbf.yaml"
+config_file="/home/hrafique/compartment-st-pred/config/config_rbf.yaml"
 
-python3 /home/hrafique/multimodal/src/predict_sge.py -ip $input_path -tp $truth_path -op $output_path \
+python3 /home/hrafique/compartment-st-pred/src/predict_sge.py -ip $input_path -tp $truth_path -op $output_path \
                                                      -tf $label_file -ff $feature_file -cp $config_file \
                                                      -fm $foundation_model  -s $segment
 
