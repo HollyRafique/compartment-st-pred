@@ -41,7 +41,7 @@ from sklearn.base import clone
 from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import ElasticNet
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, get_scorer
-from sklearn.model_selection import GridSearchCV, GroupKFold, GroupShuffleSplit, LeaveOneGroupOut
+from sklearn.model_selection import GridSearchCV, GroupKFold, GroupShuffleSplit, LeaveOneGroupOut, ParameterGrid
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
@@ -49,7 +49,7 @@ from statsmodels.stats.multitest import multipletests
 from threadpoolctl import threadpool_limits
 import yaml
 
-
+DEBUG = True
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / 'config' / 'config_genetraining.yaml'
 DEFAULT_METRICS = ['mse', 'rmse', 'nrmse', 'mae', 'r2', 'pearson', 'spearman',
                    'concordance', 'variance_ratio']
@@ -279,6 +279,7 @@ def gene_directory(run, index, gene):
 
 
 def train_one_gene(index, gene, features, y, train, test, folds, metadata, config, run):
+    if DEBUG: print(f"Training gene: {gene}", flush=True)
     directory = gene_directory(run, index, gene)
     directory.mkdir(parents=True, exist_ok=True)
     if (directory / 'complete.json').exists():
@@ -292,6 +293,7 @@ def train_one_gene(index, gene, features, y, train, test, folds, metadata, confi
     with threadpool_limits(limits=1):
         for entry in config['ml_models']:
             name = entry['name']
+            if DEBUG: print(f'{gene}:\tmodel: {name}',flush=True)
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter('always')
                 search = GridSearchCV(build_model_pipeline(name, config['execution']['seed']),
@@ -405,6 +407,12 @@ def aggregate_results(run, genes):
 def main(argv=None):
     args = parse_args(argv)
     config = resolve_config(args)
+    if DEBUG:
+        total_candidates = sum(
+            len(ParameterGrid(parameter_grid(entry['params'])))
+            for entry in config['ml_models']
+        )
+        print(f'Total parameter candidates per gene (all model families): {total_candidates}', flush=True)
     names, features = load_features(args, config)
     features, targets, metadata = align_and_validate_data(
         names, features, Path(args.truth_path) / args.truth_file)
