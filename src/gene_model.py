@@ -134,6 +134,7 @@ class Calibration:
     def from_csv(cls, path: str, **kwargs):
         """Load calibration from CSV."""
         df = pd.read_csv(path, **kwargs)
+        df = df.sort_values('Gene')
         return cls.from_dataframe(df)
 
 
@@ -208,6 +209,7 @@ class GeneModelStore:
         # calibration
         if self.calibration is not None:
             calib_path = os.path.join(self.model_dir, "calibration.csv")
+ 
             self.calibration.to_csv(calib_path)
 
 
@@ -275,6 +277,18 @@ class GeneModelStore:
             genes = list(genes)
 
         preds = []
+        print(genes)
+
+        print("checking calibration")
+
+        ## Check calibration order BEFORE processing predictions
+        if apply_calibration and self.calibration is not None:
+            # enforce gene alignment
+            if list(self.calibration.genes) != genes:
+                raise ValueError(
+                    "Gene order mismatch between predictions and calibration."
+                )
+
         for i, gene in enumerate(genes):
             print(f"{i}: {gene}")
             if gene not in self.models:
@@ -286,11 +300,6 @@ class GeneModelStore:
 
         # ---- calibration ----
         if apply_calibration and self.calibration is not None:
-            # enforce gene alignment
-            if list(self.calibration.genes) != genes:
-                raise ValueError(
-                    "Gene order mismatch between predictions and calibration."
-                )
             preds = self.calibration.apply(preds)
 
         if as_dataframe:
