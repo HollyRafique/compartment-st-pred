@@ -278,6 +278,13 @@ def gene_directory(run, index, gene):
     return run / 'genes' / f'{index:04d}_{safe_name}'
 
 
+def fit_selected_model(row, seed, X_train, y_train, X_test):
+    estimator = build_model_pipeline(row['ML_Model'], seed)
+    estimator.set_params(**json.loads(row['best_params']))
+    estimator.fit(X_train, y_train)
+    return estimator, estimator.predict(X_test)
+
+
 def train_one_gene(index, gene, features, y, train, test, folds, metadata, config, run):
     if DEBUG: print(f"Training gene: {gene}", flush=True)
     directory = gene_directory(run, index, gene)
@@ -290,7 +297,7 @@ def train_one_gene(index, gene, features, y, train, test, folds, metadata, confi
     y_train = y[train]
     y_test = y[test]
 
-    comparisons, best_search, winner = [], None, None
+    comparisons, winner = [], None
     caught_messages = []
     metrics = config['evaluation']['metrics']
     scorer = config['cross_validation']['selection_metric']
@@ -325,19 +332,31 @@ def train_one_gene(index, gene, features, y, train, test, folds, metadata, confi
                        Failed_Candidates=int((~finite).sum()), Selected_Candidate=selected)
             comparisons.append(row)
             if winner is None or row['CV_Mean'] > winner['CV_Mean']:
-                winner = row.copy()
-                best_search = search
+                winner = row
         pd.DataFrame(comparisons).to_csv(directory / 'comparison.csv', index=False)
         if winner is None:
             write_json(directory / 'warnings.json', sorted(set(caught_messages)))
             raise RuntimeError(f'All model searches failed for {gene}; see {directory}')
-        params = json.loads(winner['best_params'])
-        estimator = clone(best_search.estimator).set_params(**params)
+        family_scores = []
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
-            estimator.fit(X_train, y_train)
-            predicted = estimator.predict(X_test)
-            winner.update(evaluate_predictions(y_test, predicted, metrics))
+            for row in comparisons:
+                score = row.copy()
+                if row['status'] == 'ok':
+                    try:
+                        fitted, prediction = fit_selected_model(
+                            row, config['execution']['seed'], X_train, y_train, X_test)
+                    except ValueError as exc:
+                        if row is winner:
+                            raise
+                        score.update(status='refit_failed', error=str(exc))
+                    else:
+                        score.update(evaluate_predictions(y_test, prediction, metrics))
+                        if row is winner:
+                            estimator, predicted = fitted, prediction
+                            winner_metrics = score.copy()
+                family_scores.append(score)
+            winner = winner_metrics
             frames = []
             held = metadata.iloc[test].copy()
             held['partition'], held['fold'] = 'holdout', -1
@@ -364,6 +383,7 @@ def train_one_gene(index, gene, features, y, train, test, folds, metadata, confi
         winner['feature_extractor'] = config['foundation_model']
         winner['Segment'] = config['segment']
         pd.DataFrame([winner]).to_csv(directory / 'best.csv', index=False)
+        pd.DataFrame(family_scores).to_csv(directory / 'family_scores.csv', index=False)
         predictions = pd.concat(frames, ignore_index=True)
         predictions.insert(0, 'Gene', gene)
         predictions.to_csv(directory / 'predictions.csv', index=False)
@@ -386,20 +406,35 @@ def dataset_signature(features, targets, metadata, config):
     return digest.hexdigest()
 
 
-def aggregate_results(run, genes):
-    directories = [gene_directory(run, i, gene) for i, gene in enumerate(genes)]
-    best = pd.concat([pd.read_csv(d / 'best.csv') for d in directories], ignore_index=True)
-    for prefix in ['', 'OOF_']:
+def add_correlation_fdr(scores, prefixes=('',)):
+    for prefix in prefixes:
         for method in ['Pearson', 'Spearman']:
             column = prefix + method + 'PVals'
-            if column in best:
-                values = best[column].to_numpy(dtype=float)
+            if column in scores:
+                values = scores[column].to_numpy(dtype=float)
                 valid = np.isfinite(values)
                 adjusted = np.full(len(values), np.nan)
                 if valid.any():
                     adjusted[valid] = multipletests(values[valid], method='fdr_bh')[1]
-                best[prefix + method + 'FDR'] = adjusted
+                scores[prefix + method + 'FDR'] = adjusted
+
+
+def write_family_reports(run, scores, segment):
+    for name, rows in scores.groupby('ML_Model', sort=False):
+        report = rows.rename(columns={'ML_Model': 'Run'})
+        add_correlation_fdr(report)
+        report = report[['Run', *[column for column in report if column != 'Run']]]
+        report.to_csv(run / f'per_gene_scores-{name}-{segment}.csv', index=False)
+
+
+def aggregate_results(run, genes, segment):
+    directories = [gene_directory(run, i, gene) for i, gene in enumerate(genes)]
+    best = pd.concat([pd.read_csv(d / 'best.csv') for d in directories], ignore_index=True)
+    add_correlation_fdr(best, ('', 'OOF_'))
     best.to_csv(run / 'best_models.csv', index=False)
+    family_scores = pd.concat([pd.read_csv(d / 'family_scores.csv') for d in directories],
+                              ignore_index=True)
+    write_family_reports(run, family_scores, segment)
     pd.concat([pd.read_csv(d / 'comparison.csv') for d in directories], ignore_index=True).to_csv(
         run / 'model_comparison.csv', index=False)
     # Stream predictions to avoid accumulating all genes in RAM.
@@ -449,7 +484,7 @@ def main(argv=None):
             delayed(train_one_gene)(i, gene, features, targets[gene].to_numpy(), train, test,
                                     folds, metadata, config, run)
             for i, gene in enumerate(targets.columns))
-    aggregate_results(run, targets.columns)
+    aggregate_results(run, targets.columns, config['segment'])
     print(f'Completed. Selected parameters and metrics: {run / "best_models.csv"}', flush=True)
 
 

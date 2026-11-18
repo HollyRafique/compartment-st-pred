@@ -37,7 +37,11 @@ relative to the original script.
 
 `best_models.csv` contains the winning family and parameters for each gene,
 mean/SD CV score and held-out metrics. `model_comparison.csv` contains the best
-CV result per family. `predictions.csv` contains held-out and optional OOF
+CV result per family. Each `per_gene_scores-<model>-<segment>.csv` contains one
+row per gene, with CV selection scores and held-out metrics for that family's
+best configuration. Correlation FDR is calculated separately within each
+family across genes. Failed searches or refits retain a status row.
+`predictions.csv` contains held-out and optional OOF
 predictions with sample, patient, ROI and coordinate metadata. `genes/0000_ACTG2/`
 (index plus gene name; unsafe filename characters are replaced with underscores)
 contains the fitted winning pipeline,
