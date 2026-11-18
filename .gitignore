@@ -25,3 +25,21 @@ secrets/
 # Operating-system files
 .DS_Store
 Thumbs.db
+
+# Data
+data/01-raw/*
+!data/01-raw/.gitkeep
+data/02-input/*
+!data/02-input/.gitkeep
+data/03-results_cv/*
+!data/03-results_cv/.gitkeep
+data/04-results_test/*
+!data/04-results_test/.gitkeep
+data/05-pathway_analysis/*
+!data/05-pathway_analysis/.gitkeep
+data/06-treatment_response/*
+!data/06-treatment_response/.gitkeep
+data/tables/*
+data/figures/*
+src/compare_files.ipynb
+src/03-extract_outcomes.pre-review.ipynb.bak

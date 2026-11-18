@@ -9,7 +9,7 @@ Optional YAML sections (defaults shown)::
       group_column: LEAP_ID
       selection_metric: neg_mean_squared_error
     evaluation:
-      metrics: [mse, rmse, mae, r2, pearson, spearman, concordance, variance_ratio]
+      metrics: [mse, rmse, nrmse, mae, r2, pearson, spearman, concordance, variance_ratio]
       save_oof_predictions: true
     execution:
       n_workers: 1
@@ -28,6 +28,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 import platform
+import re
 import warnings
 
 import joblib
@@ -50,7 +51,7 @@ import yaml
 
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / 'config' / 'config_genetraining.yaml'
-DEFAULT_METRICS = ['mse', 'rmse', 'mae', 'r2', 'pearson', 'spearman',
+DEFAULT_METRICS = ['mse', 'rmse', 'nrmse', 'mae', 'r2', 'pearson', 'spearman',
                    'concordance', 'variance_ratio']
 
 
@@ -232,11 +233,23 @@ def concordance(y, pred):
     return 2 * np.mean((y - np.mean(y)) * (pred - np.mean(pred))) / denominator if denominator else np.nan
 
 
+def normalized_rmse(y, pred):
+    """Normalize by observed sample SD within the evaluated partition.
+
+    Rows are patches, including repeated observations from the same ROI.
+    Preserve the denominator for interpreting holdout, OOF and fold metrics.
+    """
+    std = float(np.std(y, ddof=1)) if len(y) > 1 else np.nan
+    score = np.sqrt(mean_squared_error(y, pred)) / std if np.isfinite(std) and std > 0 else np.nan
+    return {'nRMSE': score, 'ExpressionSD': std}
+
+
 # Extend this registry with vector metrics. Spatial metrics need a separate,
 # explicitly defined map reconstruction using the saved coordinates/identifiers.
 METRIC_REGISTRY = {
     'mse': lambda y, p: {'MSE': mean_squared_error(y, p)},
     'rmse': lambda y, p: {'RMSE': np.sqrt(mean_squared_error(y, p))},
+    'nrmse': normalized_rmse,
     'mae': lambda y, p: {'MAE': mean_absolute_error(y, p)},
     'r2': lambda y, p: {'R2': r2_score(y, p) if len(y) > 1 and np.var(y) > 0 else np.nan},
     'pearson': lambda y, p: dict(zip(['PearsonCorr', 'PearsonPVals'], correlation(y, p, pearsonr))),
@@ -259,8 +272,14 @@ def write_json(path, value):
     temporary.replace(path)
 
 
+def gene_directory(run, index, gene):
+    """Keep gene folders readable, filesystem-safe and unique by index."""
+    safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', str(gene))
+    return run / 'genes' / f'{index:04d}_{safe_name}'
+
+
 def train_one_gene(index, gene, features, y, train, test, folds, metadata, config, run):
-    directory = run / 'genes' / f'{index:04d}'
+    directory = gene_directory(run, index, gene)
     directory.mkdir(parents=True, exist_ok=True)
     if (directory / 'complete.json').exists():
         print(f'Resuming: skipping completed {gene}', flush=True)
@@ -360,8 +379,8 @@ def dataset_signature(features, targets, metadata, config):
     return digest.hexdigest()
 
 
-def aggregate_results(run, count):
-    directories = [run / 'genes' / f'{i:04d}' for i in range(count)]
+def aggregate_results(run, genes):
+    directories = [gene_directory(run, i, gene) for i, gene in enumerate(genes)]
     best = pd.concat([pd.read_csv(d / 'best.csv') for d in directories], ignore_index=True)
     for prefix in ['', 'OOF_']:
         for method in ['Pearson', 'Spearman']:
@@ -417,7 +436,7 @@ def main(argv=None):
             delayed(train_one_gene)(i, gene, features, targets[gene].to_numpy(), train, test,
                                     folds, metadata, config, run)
             for i, gene in enumerate(targets.columns))
-    aggregate_results(run, len(targets.columns))
+    aggregate_results(run, targets.columns)
     print(f'Completed. Selected parameters and metrics: {run / "best_models.csv"}', flush=True)
 
 

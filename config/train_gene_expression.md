@@ -14,7 +14,7 @@ cross_validation:
   group_column: LEAP_ID
   selection_metric: neg_mean_squared_error
 evaluation:
-  metrics: [mse, rmse, mae, r2, pearson, spearman, concordance, variance_ratio]
+  metrics: [mse, rmse, nrmse, mae, r2, pearson, spearman, concordance, variance_ratio]
   save_oof_predictions: true
 execution:
   n_workers: 1
@@ -38,8 +38,9 @@ relative to the original script.
 `best_models.csv` contains the winning family and parameters for each gene,
 mean/SD CV score and held-out metrics. `model_comparison.csv` contains the best
 CV result per family. `predictions.csv` contains held-out and optional OOF
-predictions with sample, patient, ROI and coordinate metadata. `genes/0000/`
-(gene order is in the manifest) contains the fitted winning pipeline,
+predictions with sample, patient, ROI and coordinate metadata. `genes/0000_ACTG2/`
+(index plus gene name; unsafe filename characters are replaced with underscores)
+contains the fitted winning pipeline,
 candidate/fold CV scores, warning messages, fold metrics and completion marker.
 Failed candidates have nonfinite CV scores; warning messages are recorded per
 gene, not mapped to individual candidates.
@@ -67,3 +68,13 @@ are deliberately not assigned implicit definitions: define spatial map
 reconstruction/data range for SSIM and continuous-value discretization and
 normalization for NMI first. Saved predictions support calculating these later
 without rerunning training.
+
+By default, `nRMSE` is RMSE divided by the observed expression sample standard
+deviation (`ddof=1`) in the evaluated partition. `ExpressionSD` saves that
+denominator. Holdout uses held-out patches; pooled OOF uses training patches;
+each OOF fold uses its validation patches. Pooled OOF columns carry the `OOF_`
+prefix. Constant targets or fewer than two observations yield undefined
+(`NaN`) nRMSE. Repeated patches weight both RMSE and SD, so this may differ from
+normalization using precomputed ROI-level statistics. CV selection remains
+negative MSE. If an explicit `evaluation.metrics` list is supplied, include
+`nrmse` to enable these outputs.
