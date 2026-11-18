@@ -285,6 +285,11 @@ def train_one_gene(index, gene, features, y, train, test, folds, metadata, confi
     if (directory / 'complete.json').exists():
         print(f'Resuming: skipping completed {gene}', flush=True)
         return
+    X_train = features[train]
+    X_test = features[test]
+    y_train = y[train]
+    y_test = y[test]
+
     comparisons, best_search, winner = [], None, None
     caught_messages = []
     metrics = config['evaluation']['metrics']
@@ -300,7 +305,7 @@ def train_one_gene(index, gene, features, y, train, test, folds, metadata, confi
                                       parameter_grid(entry['params']), cv=folds, scoring=scorer,
                                       n_jobs=1, refit=False, error_score=np.nan)
                 try:
-                    search.fit(features[train], y[train])
+                    search.fit(X_train, y_train)
                 except ValueError as exc:
                     comparisons.append(dict(Gene=gene, ML_Model=name, status='failed', error=str(exc)))
                     caught_messages.extend(str(w.message) for w in caught)
@@ -330,29 +335,29 @@ def train_one_gene(index, gene, features, y, train, test, folds, metadata, confi
         estimator = clone(best_search.estimator).set_params(**params)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
-            estimator.fit(features[train], y[train])
-            predicted = estimator.predict(features[test])
-            winner.update(evaluate_predictions(y[test], predicted, metrics))
+            estimator.fit(X_train, y_train)
+            predicted = estimator.predict(X_test)
+            winner.update(evaluate_predictions(y_test, predicted, metrics))
             frames = []
             held = metadata.iloc[test].copy()
             held['partition'], held['fold'] = 'holdout', -1
-            held['observed'], held['predicted'] = y[test], predicted
+            held['observed'], held['predicted'] = y_test, predicted
             frames.append(held)
             if config['evaluation']['save_oof_predictions']:
-                oof = np.full(len(train), np.nan)
-                fold_numbers = np.full(len(train), -1)
+                oof = np.full(len(y_train), np.nan)
+                fold_numbers = np.full(len(y_train), -1)
                 fold_metrics = []
                 for number, (fit, valid) in enumerate(folds):
-                    model = clone(estimator).fit(features[train[fit]], y[train[fit]])
-                    oof[valid] = model.predict(features[train[valid]])
+                    model = clone(estimator).fit(X_train[fit], y_train[fit])
+                    oof[valid] = model.predict(X_train[valid])
                     fold_numbers[valid] = number
                     fold_metrics.append(dict(fold=number, n_samples=len(valid),
-                                             **evaluate_predictions(y[train[valid]], oof[valid], metrics)))
+                                             **evaluate_predictions(y_train[valid], oof[valid], metrics)))
                 frame = metadata.iloc[train].copy()
                 frame['partition'], frame['fold'] = 'oof', fold_numbers
-                frame['observed'], frame['predicted'] = y[train], oof
+                frame['observed'], frame['predicted'] = y_train, oof
                 frames.append(frame)
-                winner.update({'OOF_' + key: value for key, value in evaluate_predictions(y[train], oof, metrics).items()})
+                winner.update({'OOF_' + key: value for key, value in evaluate_predictions(y_train, oof, metrics).items()})
                 pd.DataFrame(fold_metrics).to_csv(directory / 'oof_fold_metrics.csv', index=False)
         caught_messages.extend(str(w.message) for w in caught)
         winner['Warning_Count'] = len(caught_messages)
